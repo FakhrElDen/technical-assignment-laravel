@@ -1,320 +1,89 @@
-# Event System Implementation - Walkthrough
+# Technical Assignment: Multi-tenant Event Ingestion System
 
-## Overview
-
-Successfully implemented a production-ready, multi-tenant event system in Laravel with enterprise-grade architecture following best practices.
-
-## Architecture
-
-### Layered Architecture
-
-```mermaid
-graph TD
-    A[HTTP Request] --> B[FormRequest Validation]
-    B --> C[Controller Layer]
-    C --> D[Service Layer]
-    D --> E[Repository Layer]
-    E --> F[Model Layer]
-    F --> G[Database]
-    G --> F
-    F --> E
-    E --> D
-    D --> H[API Resource]
-    H --> I[BaseController]
-    I --> J[JSON Response]
-```
-
-### Components
-
-#### Database Schema
-
-**Tenants Table**
-- `id` (PK)
-- `key` (unique, indexed) - e.g., "acme"
-- `name`
-- Timestamps
-
-**Devices Table**
-- `id` (PK)
-- `tenant_id` (FK)
-- `device_uid`
-- Unique constraint: `(tenant_id, device_uid)`
-- Timestamps
-
-**Events Table**
-- `id` (PK)
-- `tenant_id` (FK)
-- `device_id` (FK)
-- `event_uid`
-- `type` - e.g., "location", "battery"
-- `occurred_at` (timestamp)
-- `payload` (JSON)
-- **Critical:** Unique constraint on `(tenant_id, event_uid)` for idempotency
-- Indexes: `tenant_id`, `device_id`, `type`, `(tenant_id, type)`, `(tenant_id, device_id)`
-- Timestamps
+This documentation outlines the design and implementation strategy for the multi-tenant event ingestion system.
 
 ---
 
-## Implementation Details
+## 🚀 1. Tenant Identification Strategy
 
-### 1. Migrations
+> **Question:** How would tenant identification work (e.g., request data, headers, domains)?
 
-Created three migrations with proper constraints and indexes:
+### Implementation
+Tenant identification is handled primarily via **request data**. The API receives a `tenant_key` within the request payload or query parameters.
 
-- `create_tenants_table`
-- `create_devices_table`
-- `create_events_table`
+- **Resolution:** The system resolves the tenant by querying the `tenants` table using the unique `tenant_key`.
+- **Scoping:** Once resolved, all subsequent operations (devices, events, queries) are strictly scoped to that `tenant_id`.
 
-### 2. Models
-
-Created Eloquent models with relationships:
-
-- `Tenant` - Has many devices and events
-- `Device` - Belongs to tenant, has many events
-- `Event` - Belongs to tenant and device, casts payload to array
-
-### 3. Repository Pattern
-
-Implemented repositories for data access abstraction:
-
-- `TenantRepository`
-- `DeviceRepository`
-- `EventRepository`
-
-### 4. Service Layer
-
-`EventService` handles business logic:
-- `storeEvent()` - Orchestrates tenant/device resolution and event creation with idempotency
-- `getEvents()` - Retrieves filtered events
-
-### 5. Form Requests
-
-Validation extracted to dedicated classes:
-
-- `StoreEventRequest` - Validates POST data
-- `IndexEventRequest` - Validates query parameters
-
-### 6. API Resources
-
-`EventResource` transforms event data into a consistent API format:
-```json
-{
-  "id": 1,
-  "event_uid": "evt_000001",
-  "type": "location",
-  "occurred_at": "2026-01-28T08:12:11+00:00",
-  "payload": {
-    "lat": 48.1486,
-    "lng": 17.1077,
-    "accuracy": 12
-  },
-  "tenant": {
-    "key": "acme",
-    "name": "ACME Corporation"
-  },
-  "device": {
-    "device_uid": "DEV-001"
-  },
-  "created_at": "2026-01-30T00:00:00+00:00"
-}
-```
-
-### 7. Base Controller
-
-`BaseController` provides standardized response methods:
-- `successResponse()` - Consistent success responses
-- `errorResponse()` - Consistent error responses
-
-### 8. Event Controller
-
-`EventController` - Ultra-thin controller that delegates to service layer
+> [!NOTE]
+> For production-grade systems, identification can be extended to Headers (`X-Tenant-Key`), or JWT claims for authenticated sessions.
 
 ---
 
-## API Endpoints
+## 🛡️ 2. Data Isolation & Integrity
 
-### POST /api/events
+> **Question:** How do you ensure isolation at the database and application levels?
 
-**Create a new event (idempotent)**
+### Database Level
+Isolation is enforced through strict constraints and foreign key relationships:
+- **Composite Unique Keys:**
+  - `UNIQUE (tenant_id, device_uid)`
+  - `UNIQUE (tenant_id, event_uid)`
+- **Schema Design:** All core tables include a mandatory `tenant_id` foreign key.
 
-**Request:**
-```json
-{
-  "tenant_key": "acme",
-  "device_uid": "DEV-001",
-  "event_uid": "evt_000001",
-  "type": "location",
-  "occurred_at": "2026-01-28T08:12:11Z",
-  "payload": {
-    "lat": 48.1486,
-    "lng": 17.1077,
-    "accuracy": 12
-  }
-}
-```
+### Application Level
+- **Mandatory Scoping:** Every request must resolve the tenant context first.
+- **Query Enforcement:** No query is permitted to execute without an explicit `tenant_id` filter.
 
-**Success Response (201 or 200):**
-```json
-{
-  "success": true,
-  "message": "Event created successfully",
-  "data": {
-    "id": 1,
-    "event_uid": "evt_000001",
-    "type": "location",
-    "occurred_at": "2026-01-28T08:12:11+00:00",
-    "payload": { "lat": 48.1486, "lng": 17.1077, "accuracy": 12 },
-    "tenant": { "key": "acme", "name": "acme" },
-    "device": { "device_uid": "DEV-001" },
-    "created_at": "2026-01-30T00:00:00+00:00"
-  }
-}
-```
-
-**Error Response (422):**
-```json
-{
-  "success": false,
-  "message": "The given data was invalid.",
-  "errors": {
-    "tenant_key": ["The tenant key field is required."]
-  }
-}
-```
-
-### GET /api/events
-
-**Retrieve events with optional filters**
-
-**Query Parameters:**
-- `tenant_key` (optional) - Filter by tenant
-- `device_uid` (optional) - Filter by device
-- `type` (optional) - Filter by event type
-
-**Example:**
-```
-GET /api/events?tenant_key=acme&type=location
-```
-
-**Success Response (200):**
-```json
-{
-  "success": true,
-  "message": "Events retrieved successfully",
-  "data": {
-    "events": [
-      {
-        "id": 1,
-        "event_uid": "evt_000001",
-        "type": "location",
-        "occurred_at": "2026-01-28T08:12:11+00:00",
-        "payload": { "lat": 48.1486, "lng": 17.1077, "accuracy": 12 },
-        "tenant": { "key": "acme", "name": "acme" },
-        "device": { "device_uid": "DEV-001" },
-        "created_at": "2026-01-30T00:00:00+00:00"
-      }
-    ],
-    "count": 1
-  }
-}
-```
+> [!TIP]
+> Use Laravel **Global Scopes** to automatically apply the `tenant_id` filter to all Eloquent queries.
 
 ---
 
-## Key Features Implemented
+## 🧪 3. Reliability & Error Handling
 
-### ✅ Multi-Tenancy
-- Tenant isolation via `tenant_id` foreign keys
-- Automatic tenant creation on first event
+> **Question:** How do you handle system reliability and prevent data duplication?
 
-### ✅ Idempotency
-- Unique constraint on `(tenant_id, event_uid)` prevents duplicate events
-- Same event submitted twice returns 200 instead of 201
-
-### ✅ Performance
-- Comprehensive indexes on frequently queried columns
-- Composite indexes for multi-column filters
-- Eager loading relationships to prevent N+1 queries
-
-### ✅ Scalability
-- Repository pattern allows easy switching to different data sources
-- Service layer centralizes business logic
-- Can be partitioned by `tenant_id` or `occurred_at` for horizontal scaling
-
-### ✅ Code Quality
-- **SOLID principles** - Single Responsibility, Dependency Injection
-- **Clean architecture** - Controller → Service → Repository → Model
-- **Validation** - Extracted to Form Requests
-- **Response consistency** - BaseController and API Resources
-- **Type safety** - TypeHinted parameters and return types
+- **Idempotency:** Utilize database constraints to prevent duplicate event ingestion, ensuring that retried requests do not result in duplicate records.
+- **Consistent Responses:** Implement a centralized error-handling strategy in a base controller for standardized API responses.
+- **Data Integrity:** Rely on database-level guarantees (foreign keys/transactions) rather than just application logic.
 
 ---
 
-## Testing
+## 📈 4. Scalability & Performance
 
-### Manual Testing with cURL
+> **Question:** What measures ensure the system remains performant under high load?
 
-**Create an event:**
-```bash
-curl -X POST http://127.0.0.1:8000/api/events \
-  -H "Content-Type: application/json" \
-  -H "Accept: application/json" \
-  -d '{
-    "tenant_key": "acme",
-    "device_uid": "DEV-001",
-    "event_uid": "evt_000001",
-    "type": "location",
-    "occurred_at": "2026-01-28T08:12:11Z",
-    "payload": {
-      "lat": 48.1486,
-      "lng": 17.1077,
-      "accuracy": 12
-    }
-  }'
-```
-
-**Test idempotency (submit same event twice):**
-```bash
-# First request returns 201
-# Second request returns 200 with message "Event already exists"
-```
-
-**Retrieve events:**
-```bash
-# All events for a tenant
-curl http://127.0.0.1:8000/api/events?tenant_key=acme
-
-# Filter by type
-curl http://127.0.0.1:8000/api/events?tenant_key=acme&type=location
-
-# Filter by device
-curl http://127.0.0.1:8000/api/events?tenant_key=acme&device_uid=DEV-001
-```
+| Feature | Strategy |
+| :--- | :--- |
+| **Architecture** | Transition to Modular/HMVC structure as the codebase grows. |
+| **Processing** | Use Asynchronous Queues and background jobs for high-frequency events. |
+| **Optimization** | Implement Caching for frequently accessed tenant metadata. |
+| **Code Quality** | Adhere to SOLID principles to maintain long-term scalability. |
 
 ---
 
-## Database Verification
+## ⚠️ 5. Challenges & Edge Cases
 
-Migrations successfully created all tables with proper constraints:
+> **Question:** What are the common failure points in multi-tenant environments?
 
-```
-✅ tenants table - with unique key constraint
-✅ devices table - with unique (tenant_id, device_uid) constraint  
-✅ events table - with unique (tenant_id, event_uid) constraint
-✅ All indexes created successfully
-```
+- **Tenant-Aware Caching:** Cache keys must include the tenant ID (e.g., `tenant:{id}:events`) to prevent data leakage.
+- **Background Jobs:** Jobs must explicitly carry the `tenant_id` in their payload to maintain context during execution.
+- **"Noisy Neighbor" Effect:** High-volume tenants can impact system performance; rate limiting per tenant is recommended.
+- **Observability:** Logs must include `tenant_id` for effective troubleshooting and traceability.
 
 ---
 
-## Summary
+## 🔒 6. Security & Access Control
 
-Successfully implemented a production-ready event system with:
+> **Question:** How is unauthorized access prevented?
 
-- ✅ Clean, maintainable architecture
-- ✅ Enterprise-grade idempotency
-- ✅ High-performance database design
-- ✅ Consistent API responses
-- ✅ Comprehensive validation
-- ✅ Scalable design patterns
+- **Authentication:** Managed via [Laravel Sanctum](https://laravel.com/docs/sanctum).
+- **Authorization:** Implementation of a Roles & Permissions package to define granular access levels.
+- **Validation:** Strict validation of all incoming data to prevent injection or cross-tenant data access.
 
-The system is ready for IoT tracking, SaaS events, analytics ingestion, and other high-write event-based applications.
+---
+
+## 📝 Project Meta
+
+- **Time Spent:** Approximately 2 days.
+- **Completion Status:** I believe the solution is "good enough" for the requirements of this assignment, striking a balance between robust architecture and implementation speed.
