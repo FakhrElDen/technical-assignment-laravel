@@ -1,0 +1,117 @@
+{
+	"info": {
+		"_postman_id": "18b1935d-889d-40ae-9d17-d627cb6aa256",
+		"name": "Technical Assignment",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "9627829"
+	},
+	"item": [
+		{
+			"name": "Events",
+			"item": [
+				{
+					"name": "store",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"tenant_key\": \"acme\",\n    \"device_uid\": \"DEV-001\",\n    \"event_uid\": \"evt_000014\",\n    \"type\": \"location\",\n    \"occurred_at\": \"2026-02-15T00:00:00Z\",\n    \"payload\": {\n      \"lat\": 51.5074,\n      \"lng\": -0.1278,\n      \"accuracy\": 10\n    }\n  }",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "http://127.0.0.1:8000/api/events",
+							"protocol": "http",
+							"host": [
+								"127",
+								"0",
+								"0",
+								"1"
+							],
+							"port": "8000",
+							"path": [
+								"api",
+								"events"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "listing",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "formdata",
+							"formdata": []
+						},
+						"url": {
+							"raw": "http://127.0.0.1:8000/api/events",
+							"protocol": "http",
+							"host": [
+								"127",
+								"0",
+								"0",
+								"1"
+							],
+							"port": "8000",
+							"path": [
+								"api",
+								"events"
+							],
+							"query": [
+								{
+									"key": "tenant_key",
+									"value": "acme",
+									"disabled": true
+								},
+								{
+									"key": "device_uid",
+									"value": "DEV-001",
+									"disabled": true
+								},
+								{
+									"key": "type",
+									"value": "battery",
+									"disabled": true
+								},
+								{
+									"key": "page",
+									"value": "2",
+									"disabled": true
+								}
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		}
+	],
+	"variable": [
+		{
+			"key": "BaseUrl",
+			"value": "http://127.0.0.1:8000/api"
+		}
+	]
+}
