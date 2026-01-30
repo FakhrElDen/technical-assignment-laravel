@@ -6,6 +6,7 @@ use App\Jobs\ProcessEventCreated;
 use App\Repositories\DeviceRepository;
 use App\Repositories\EventRepository;
 use App\Repositories\TenantRepository;
+use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
 
 class EventService
@@ -25,7 +26,6 @@ class EventService
         return DB::transaction(function () use ($data) {
             // 1. Resolve tenant
             $tenant = $this->tenantRepository->firstOrCreate(
-                $data['tenant_key'],
                 $data['tenant_key']
             );
 
@@ -64,14 +64,8 @@ class EventService
     /**
      * Get events with filters.
      */
-    public function getEvents(?string $tenantKey = null, ?string $deviceUid = null, ?string $type = null): array
+    public function getEvents(?string $tenantKey = null, ?string $deviceUid = null, ?string $type = null): LengthAwarePaginator
     {
-        $events = $this->eventRepository->getFiltered($tenantKey, $deviceUid, $type);
-
-        return [
-            'events' => $events,
-            'count' => $events->count(),
-        ];
+        return $this->eventRepository->getFiltered($tenantKey, $deviceUid, $type);
     }
 }
-

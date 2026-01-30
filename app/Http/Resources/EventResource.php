@@ -20,14 +20,9 @@ class EventResource extends JsonResource
             'type' => $this->type,
             'occurred_at' => $this->occurred_at->toIso8601String(),
             'payload' => $this->payload,
-            'tenant' => [
-                'key' => $this->tenant->key,
-                'name' => $this->tenant->name,
-            ],
-            'device' => [
-                'device_uid' => $this->device->device_uid,
-            ],
             'created_at' => $this->created_at->toIso8601String(),
+            'tenant' => new TenantResource($this->whenLoaded('tenant')),
+            'device' => new DeviceResource($this->whenLoaded('device')),
         ];
     }
 

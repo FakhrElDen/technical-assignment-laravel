@@ -49,10 +49,7 @@ class EventController extends BaseController
                 $request->input('type')
             );
 
-            return $this->successResponse([
-                'events' => EventResource::collection($result['events']),
-                'count' => $result['count'],
-            ], 'Events retrieved successfully');
+            return $this->successResponse(EventResource::collection($result), 'Events retrieved successfully');
         } catch (\Exception $e) {
             return $this->errorResponse('Failed to retrieve events', 500, $e->getMessage());
         }

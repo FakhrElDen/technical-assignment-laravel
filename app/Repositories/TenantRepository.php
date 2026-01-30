@@ -14,11 +14,10 @@ class TenantRepository
     /**
      * Find or create a tenant by key.
      */
-    public function firstOrCreate(string $key, ?string $name = null): Tenant
+    public function firstOrCreate(string $key): Tenant
     {
         return $this->model->firstOrCreate(
-            ['key' => $key],
-            ['name' => $name ?? $key]
+            ['key' => $key]
         );
     }
 

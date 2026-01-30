@@ -3,7 +3,7 @@
 namespace App\Repositories;
 
 use App\Models\Event;
-use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 
 class EventRepository
 {
@@ -23,7 +23,7 @@ class EventRepository
     /**
      * Get events with filters.
      */
-    public function getFiltered(?string $tenantKey = null, ?string $deviceUid = null, ?string $type = null): Collection
+    public function getFiltered(?string $tenantKey = null, ?string $deviceUid = null, ?string $type = null): LengthAwarePaginator
     {
         $query = $this->model->query()->with(['tenant', 'device']);
 
@@ -46,7 +46,7 @@ class EventRepository
             $query->where('type', $type);
         }
 
-        return $query->orderBy('occurred_at', 'desc')->get();
+        return $query->orderBy('occurred_at', 'desc')->paginate(2);
     }
 }
 
